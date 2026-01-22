@@ -6,6 +6,10 @@ resource "aws_vpc" "this" {
   tags = merge(var.tags, { Name = "rian-vpc" })
 }
 
+locals {
+  public_subnets = { for idx, az in var.public_subnet_azs : az => var.public_subnet_cidr_blocks[idx] }
+}
+
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 
@@ -13,12 +17,13 @@ resource "aws_internet_gateway" "this" {
 }
 
 resource "aws_subnet" "public" {
+  for_each                = local.public_subnets
   vpc_id                  = aws_vpc.this.id
-  cidr_block              = var.public_subnet_cidr_block
-  availability_zone       = var.public_subnet_az
+  cidr_block              = each.value
+  availability_zone       = each.key
   map_public_ip_on_launch = true
 
-  tags = merge(var.tags, { Name = "rian-public-subnet" })
+  tags = merge(var.tags, { Name = "rian-public-subnet-${each.key}" })
 }
 
 resource "aws_route_table" "public" {
@@ -34,6 +39,7 @@ resource "aws_route" "public_internet_access" {
 }
 
 resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
+  for_each       = aws_subnet.public
+  subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
 }
